@@ -1,0 +1,139 @@
+{
+  "Google Analytics": {
+    "cats": [10],
+    "description": "Google Analytics é um serviço de análise da web",
+    "icon": "Google Analytics.svg",
+    "js": {
+      "GoogleAnalyticsObject": ""
+    },
+    "scriptSrc": [
+      "google-analytics\\.com/analytics\\.js",
+      "googletagmanager\\.com/gtag/js"
+    ],
+    "website": "https://marketingplatform.google.com/about/analytics/"
+  },
+  "WordPress": {
+    "cats": [1],
+    "description": "WordPress é um sistema de gestão de conteúdo.",
+    "html": [
+      "<link rel=[\"']stylesheet[\"'] [^>]+wp-(?:content|includes)",
+      "<link[^>]+s\\.w\\.org"
+    ],
+    "icon": "WordPress.svg",
+    "implies": "PHP",
+    "meta": {
+      "generator": "WordPress"
+    },
+    "scriptSrc": "/wp-includes/",
+    "website": "https://wordpress.org"
+  },
+  "Zendesk Chat": {
+    "cats": [52],
+    "description": "Zendesk Chat é uma ferramenta de chat e atendimento ao cliente.",
+    "icon": "Zendesk.png",
+    "scriptSrc": "zopim\\.com",
+    "website": "https://www.zendesk.com/chat"
+  },
+  "Intercom": {
+    "cats": [52],
+    "description": "Intercom é uma plataforma de mensagens para sites.",
+    "icon": "Intercom.svg",
+    "scriptSrc": "intercom\\.io",
+    "website": "https://www.intercom.com"
+  },
+  "Drift": {
+    "cats": [52],
+    "description": "Drift é uma ferramenta de chat e conversational marketing.",
+    "icon": "Drift.svg",
+    "scriptSrc": "drift\\.com",
+    "website": "https://www.drift.com/"
+  },
+  "HubSpot": {
+    "cats": [32],
+    "description": "HubSpot é uma plataforma de inbound marketing, vendas e CRM.",
+    "icon": "HubSpot.svg",
+    "js": {
+      "HubSpot": "",
+      "_hsq": "array"
+    },
+    "scriptSrc": "js\\.hs-scripts\\.com",
+    "website": "https://www.hubspot.com"
+  },
+  "React": {
+    "cats": [12],
+    "description": "React é uma biblioteca JavaScript para construção de interfaces de usuário.",
+    "icon": "React.svg",
+    "js": {
+      "React.version": "^([\\d.]+)$\\;version:\\1"
+    },
+    "scriptSrc": [
+      "react(?:-[^.]*)?(?:\\.min)?\\.js"
+    ],
+    "website": "https://reactjs.org"
+  },
+  "jQuery": {
+    "cats": [59],
+    "description": "jQuery é uma biblioteca JavaScript",
+    "icon": "jQuery.svg",
+    "js": {
+      "jQuery.fn.jquery": "([\\d.]+)$\\;version:\\1"
+    },
+    "scriptSrc": "jquery.*\\.js",
+    "website": "https://jquery.com"
+  },
+  "Bootstrap": {
+    "cats": [18],
+    "description": "Bootstrap é um framework front-end para desenvolvimento de sites responsivos.",
+    "html": [
+      "<link[^>]+?href=[^>]+bootstrap(?:\\.min)?\\.css"
+    ],
+    "icon": "Bootstrap.svg",
+    "js": {
+      "bootstrap.Alert.VERSION": "^([\\d.]+)$\\;version:\\1"
+    },
+    "scriptSrc": "bootstrap(?:\\.min)?\\.js",
+    "website": "https://getbootstrap.com"
+  },
+  "Font Awesome": {
+    "cats": [17],
+    "description": "Font Awesome é uma biblioteca de ícones e fonte.",
+    "html": [
+      "<link[^>]+?href=[^>]+font-awesome(?:\\.min)?\\.css"
+    ],
+    "icon": "Font Awesome.svg",
+    "website": "https://fontawesome.com"
+  },
+  "Google Fonts": {
+    "cats": [17],
+    "description": "Google Fonts é um serviço de hospedagem de fontes gratuito.",
+    "html": [
+      "<link[^>]+?href=[^>]+fonts\\.googleapis\\.com"
+    ],
+    "icon": "Google.svg",
+    "website": "https://fonts.google.com"
+  },
+  "Google Tag Manager": {
+    "cats": [42],
+    "description": "Google Tag Manager é um sistema de gerenciamento de tags.",
+    "html": [
+      "<noscript><iframe[^>]+googletagmanager\\.com"
+    ],
+    "icon": "Google Tag Manager.svg",
+    "js": {
+      "google_tag_manager": "",
+      "googletag": ""
+    },
+    "scriptSrc": "googletagmanager\\.com",
+    "website": "https://marketingplatform.google.com/about/tag-manager/"
+  },
+  "Facebook Pixel": {
+    "cats": [10],
+    "description": "Facebook Pixel é uma ferramenta de análise para mensurar a eficácia de anúncios.",
+    "icon": "Facebook.svg",
+    "js": {
+      "fbq": ""
+    },
+    "scriptSrc": "connect\\.facebook\\.net/[^/]*/fbevents\\.js",
+    "website": "https://www.facebook.com/business/learn/facebook-ads-pixel"
+  }
+}
