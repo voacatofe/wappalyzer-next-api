@@ -29,11 +29,17 @@ if ! command -v curl > /dev/null; then\n\
 fi\n\
 \n\
 echo "Baixando technologies.json..."\n\
-curl -s -o technologies.json.new https://raw.githubusercontent.com/AliasIO/wappalyzer/master/src/technologies.json\n\
+curl -s -o technologies.json.new https://raw.githubusercontent.com/enthec/webappanalyzer/main/src/technologies.json\n\
 \n\
 if [ $? -eq 0 ]; then\n\
-  mv technologies.json.new technologies.json\n\
-  echo "Download concluído com sucesso."\n\
+  # Verificar se o arquivo baixado é um JSON válido\n\
+  if python -c "import json; json.load(open(\"technologies.json.new\"))"; then\n\
+    mv technologies.json.new technologies.json\n\
+    echo "Download concluído com sucesso."\n\
+  else\n\
+    echo "Arquivo JSON inválido. Usando arquivo padrão se existir."\n\
+    rm technologies.json.new\n\
+  fi\n\
 else\n\
   echo "Falha ao baixar o arquivo. Usando arquivo padrão se existir."\n\
 fi\n\

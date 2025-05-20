@@ -6,23 +6,31 @@ import requests
 from bs4 import BeautifulSoup
 import re
 import subprocess
+import logging
+
+# Configurar logging
+logging.basicConfig(level=logging.INFO, 
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
+# URL para o arquivo technologies.json do repositório enthec/webappanalyzer
+TECHNOLOGIES_URL = "https://raw.githubusercontent.com/enthec/webappanalyzer/main/src/technologies.json"
+
 # Verificar se o arquivo technologies.json existe, se não, baixá-lo
 def download_technologies_json():
-    print("Arquivo technologies.json não encontrado. Baixando...")
+    logger.info("Arquivo technologies.json não encontrado. Baixando...")
     try:
         # Fazer backup do arquivo antigo se existir
         technologies_path = os.path.join(os.path.dirname(__file__), 'technologies.json')
         if os.path.exists(technologies_path):
             backup_path = technologies_path + '.bak'
             os.rename(technologies_path, backup_path)
-            print(f"Backup do arquivo original criado em {backup_path}")
+            logger.info(f"Backup do arquivo original criado em {backup_path}")
         
         # Baixar o novo arquivo
-        url = "https://raw.githubusercontent.com/AliasIO/wappalyzer/master/src/technologies.json"
-        response = requests.get(url)
+        response = requests.get(TECHNOLOGIES_URL)
         response.raise_for_status()
         
         # Verificar se é um JSON válido antes de salvar
@@ -32,58 +40,61 @@ def download_technologies_json():
         with open(technologies_path, 'w', encoding='utf-8') as f:
             json.dump(json_data, f, ensure_ascii=False, indent=2)
             
-        print("Download do arquivo technologies.json concluído com sucesso.")
+        logger.info("Download do arquivo technologies.json concluído com sucesso.")
         return True
     except Exception as e:
-        print(f"Erro ao baixar technologies.json: {str(e)}")
+        logger.error(f"Erro ao baixar technologies.json: {str(e)}")
         
         # Tentar restaurar o backup se existir
         backup_path = technologies_path + '.bak'
         if os.path.exists(backup_path):
             os.rename(backup_path, technologies_path)
-            print("Arquivo de backup restaurado.")
+            logger.info("Arquivo de backup restaurado.")
         return False
 
-# Tentar carregar o arquivo technologies.json
-try:
-    technologies_path = os.path.join(os.path.dirname(__file__), 'technologies.json')
-    
-    if not os.path.exists(technologies_path):
-        success = download_technologies_json()
-        if not success:
-            print("Não foi possível baixar o arquivo. Criando um arquivo vazio.")
-            TECHNOLOGIES = {}
-            # Criar um arquivo JSON vazio válido
-            with open(technologies_path, 'w', encoding='utf-8') as f:
-                json.dump({}, f)
-        else:
-            with open(technologies_path, 'r', encoding='utf-8') as f:
-                TECHNOLOGIES = json.load(f)
-    else:
-        try:
-            with open(technologies_path, 'r', encoding='utf-8') as f:
-                TECHNOLOGIES = json.load(f)
-        except json.JSONDecodeError:
-            print("O arquivo technologies.json existente está corrompido. Tentando baixar novamente.")
+# Carregar o arquivo technologies.json
+def load_technologies():
+    try:
+        technologies_path = os.path.join(os.path.dirname(__file__), 'technologies.json')
+        
+        if not os.path.exists(technologies_path):
             success = download_technologies_json()
-            if success:
-                with open(technologies_path, 'r', encoding='utf-8') as f:
-                    TECHNOLOGIES = json.load(f)
-            else:
-                TECHNOLOGIES = {}
+            if not success:
+                logger.warning("Não foi possível baixar o arquivo. Criando um arquivo vazio.")
+                technologies = {}
                 # Criar um arquivo JSON vazio válido
                 with open(technologies_path, 'w', encoding='utf-8') as f:
                     json.dump({}, f)
-except Exception as e:
-    print(f"Erro ao carregar technologies.json: {str(e)}")
-    TECHNOLOGIES = {}
+                return technologies
+        
+        try:
+            with open(technologies_path, 'r', encoding='utf-8') as f:
+                technologies = json.load(f)
+                logger.info(f"Arquivo technologies.json carregado com sucesso. {len(technologies)} tecnologias disponíveis.")
+                return technologies
+        except json.JSONDecodeError:
+            logger.warning("O arquivo technologies.json existente está corrompido. Tentando baixar novamente.")
+            success = download_technologies_json()
+            if success:
+                with open(technologies_path, 'r', encoding='utf-8') as f:
+                    technologies = json.load(f)
+                    return technologies
+            else:
+                logger.warning("Falha ao recarregar. Usando dicionário vazio.")
+                return {}
+    except Exception as e:
+        logger.error(f"Erro ao carregar technologies.json: {str(e)}")
+        return {}
+
+# Carregar tecnologias
+TECHNOLOGIES = load_technologies()
 
 @app.route('/')
 def index():
     return """
     <html>
     <head>
-        <title>Wappalyzer-Next API</title>
+        <title>Wappalyzer API</title>
         <style>
             body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
             h1 { color: #333; }
@@ -93,8 +104,8 @@ def index():
         </style>
     </head>
     <body>
-        <h1>Wappalyzer-Next API</h1>
-        <p>Esta API utiliza as fingerprints do <a href="https://github.com/AliasIO/wappalyzer" target="_blank">Wappalyzer</a> 
+        <h1>Wappalyzer API</h1>
+        <p>Esta API utiliza as fingerprints do <a href="https://github.com/enthec/webappanalyzer" target="_blank">WebAppAnalyzer</a> 
         para detectar tecnologias em websites, com foco especial em tecnologias de frontend e ferramentas de chat/atendimento ao cliente.</p>
         
         <p>Base de dados: <span class="tech-count">{}</span> tecnologias disponíveis para detecção.</p>
@@ -130,17 +141,65 @@ def status():
 
 def safe_compile_regex(pattern, flags=0):
     """Compila um padrão regex com tratamento de erros"""
+    if not pattern:
+        return None
+        
     try:
-        return re.compile(pattern, flags)
+        # Limpar padrão removendo tags como \;confidence:50
+        clean_pattern = pattern
+        if '\\;' in pattern:
+            clean_pattern = pattern.split('\\;')[0]
+            
+        return re.compile(clean_pattern, flags)
     except re.error as e:
-        print(f"Erro ao compilar regex '{pattern}': {str(e)}")
+        logger.warning(f"Erro ao compilar regex '{pattern}': {str(e)}")
         return None
     except Exception as e:
-        print(f"Erro genérico ao compilar regex '{pattern}': {str(e)}")
+        logger.warning(f"Erro genérico ao compilar regex '{pattern}': {str(e)}")
         return None
 
-def get_regex_patterns():
-    """Extrai padrões regex de todas as tecnologias"""
+def extract_version(pattern, match, text):
+    """Extrai a versão de um padrão com base na tag version"""
+    version = ""
+    
+    if match and "\\;version:" in pattern:
+        try:
+            version_tag = pattern.split("\\;version:")[1].split("\\;")[0]
+            
+            # Se o version_tag contém referência ao grupo de captura
+            if "\\1" in version_tag:
+                if match.groups():
+                    # Substituir \\1 pelo primeiro grupo capturado
+                    version = version_tag.replace("\\1", match.group(1))
+            else:
+                # Se é um índice numérico direto
+                try:
+                    group_index = int(version_tag)
+                    if len(match.groups()) >= group_index:
+                        version = match.group(group_index)
+                except ValueError:
+                    # Se não for um número, usa o próprio tag como versão
+                    version = version_tag
+        except Exception as e:
+            logger.warning(f"Erro ao extrair versão: {str(e)}")
+            
+    return version
+
+def get_confidence(pattern):
+    """Extrai o valor de confiança de um padrão"""
+    confidence = 100  # Valor padrão
+    
+    if "\\;confidence:" in pattern:
+        try:
+            confidence_str = pattern.split("\\;confidence:")[1].split("\\;")[0]
+            confidence = int(confidence_str)
+        except (ValueError, IndexError):
+            pass
+            
+    return confidence
+
+def compile_patterns():
+    """Compila padrões de expressões regulares de todas as tecnologias"""
     patterns = {}
     skipped_patterns = 0
     
@@ -153,37 +212,53 @@ def get_regex_patterns():
             "description": tech_info.get("description", "")
         }
         
-        # HTML patterns
+        # HTML patterns (deprecated mas ainda suportado)
         if "html" in tech_info:
             patterns[tech_name]["regex"]["html"] = []
             if isinstance(tech_info["html"], list):
                 for pattern in tech_info["html"]:
                     compiled = safe_compile_regex(pattern, re.IGNORECASE)
                     if compiled:
-                        patterns[tech_name]["regex"]["html"].append(compiled)
+                        patterns[tech_name]["regex"]["html"].append({
+                            "pattern": pattern,
+                            "compiled": compiled,
+                            "confidence": get_confidence(pattern)
+                        })
                     else:
                         skipped_patterns += 1
             else:
                 compiled = safe_compile_regex(tech_info["html"], re.IGNORECASE)
                 if compiled:
-                    patterns[tech_name]["regex"]["html"].append(compiled)
+                    patterns[tech_name]["regex"]["html"].append({
+                        "pattern": tech_info["html"],
+                        "compiled": compiled,
+                        "confidence": get_confidence(tech_info["html"])
+                    })
                 else:
                     skipped_patterns += 1
         
-        # Script patterns
+        # Script source patterns
         if "scriptSrc" in tech_info:
             patterns[tech_name]["regex"]["script"] = []
             if isinstance(tech_info["scriptSrc"], list):
                 for pattern in tech_info["scriptSrc"]:
                     compiled = safe_compile_regex(pattern, re.IGNORECASE)
                     if compiled:
-                        patterns[tech_name]["regex"]["script"].append(compiled)
+                        patterns[tech_name]["regex"]["script"].append({
+                            "pattern": pattern,
+                            "compiled": compiled,
+                            "confidence": get_confidence(pattern)
+                        })
                     else:
                         skipped_patterns += 1
             else:
                 compiled = safe_compile_regex(tech_info["scriptSrc"], re.IGNORECASE)
                 if compiled:
-                    patterns[tech_name]["regex"]["script"].append(compiled)
+                    patterns[tech_name]["regex"]["script"].append({
+                        "pattern": tech_info["scriptSrc"],
+                        "compiled": compiled,
+                        "confidence": get_confidence(tech_info["scriptSrc"])
+                    })
                 else:
                     skipped_patterns += 1
         
@@ -198,13 +273,21 @@ def get_regex_patterns():
                 for pattern in tech_info["url"]:
                     compiled = safe_compile_regex(pattern, re.IGNORECASE)
                     if compiled:
-                        patterns[tech_name]["regex"]["url"].append(compiled)
+                        patterns[tech_name]["regex"]["url"].append({
+                            "pattern": pattern,
+                            "compiled": compiled,
+                            "confidence": get_confidence(pattern)
+                        })
                     else:
                         skipped_patterns += 1
             else:
                 compiled = safe_compile_regex(tech_info["url"], re.IGNORECASE)
                 if compiled:
-                    patterns[tech_name]["regex"]["url"].append(compiled)
+                    patterns[tech_name]["regex"]["url"].append({
+                        "pattern": tech_info["url"],
+                        "compiled": compiled,
+                        "confidence": get_confidence(tech_info["url"])
+                    })
                 else:
                     skipped_patterns += 1
         
@@ -216,32 +299,90 @@ def get_regex_patterns():
         if "js" in tech_info:
             patterns[tech_name]["js"] = tech_info["js"]
         
-        # DOM patterns
-        if "dom" in tech_info:
-            patterns[tech_name]["regex"]["dom"] = []
-            if isinstance(tech_info["dom"], list):
-                for pattern in tech_info["dom"]:
+        # Text patterns
+        if "text" in tech_info:
+            patterns[tech_name]["regex"]["text"] = []
+            if isinstance(tech_info["text"], list):
+                for pattern in tech_info["text"]:
                     compiled = safe_compile_regex(pattern, re.IGNORECASE)
                     if compiled:
-                        patterns[tech_name]["regex"]["dom"].append(compiled)
+                        patterns[tech_name]["regex"]["text"].append({
+                            "pattern": pattern,
+                            "compiled": compiled,
+                            "confidence": get_confidence(pattern)
+                        })
                     else:
                         skipped_patterns += 1
             else:
-                compiled = safe_compile_regex(tech_info["dom"], re.IGNORECASE)
+                compiled = safe_compile_regex(tech_info["text"], re.IGNORECASE)
                 if compiled:
-                    patterns[tech_name]["regex"]["dom"].append(compiled)
+                    patterns[tech_name]["regex"]["text"].append({
+                        "pattern": tech_info["text"],
+                        "compiled": compiled,
+                        "confidence": get_confidence(tech_info["text"])
+                    })
+                else:
+                    skipped_patterns += 1
+        
+        # CSS patterns
+        if "css" in tech_info:
+            patterns[tech_name]["regex"]["css"] = []
+            if isinstance(tech_info["css"], list):
+                for pattern in tech_info["css"]:
+                    compiled = safe_compile_regex(pattern, re.IGNORECASE)
+                    if compiled:
+                        patterns[tech_name]["regex"]["css"].append({
+                            "pattern": pattern,
+                            "compiled": compiled,
+                            "confidence": get_confidence(pattern)
+                        })
+                    else:
+                        skipped_patterns += 1
+            else:
+                compiled = safe_compile_regex(tech_info["css"], re.IGNORECASE)
+                if compiled:
+                    patterns[tech_name]["regex"]["css"].append({
+                        "pattern": tech_info["css"],
+                        "compiled": compiled,
+                        "confidence": get_confidence(tech_info["css"])
+                    })
+                else:
+                    skipped_patterns += 1
+        
+        # Scripts content patterns
+        if "scripts" in tech_info:
+            patterns[tech_name]["regex"]["scripts"] = []
+            if isinstance(tech_info["scripts"], list):
+                for pattern in tech_info["scripts"]:
+                    compiled = safe_compile_regex(pattern, re.IGNORECASE)
+                    if compiled:
+                        patterns[tech_name]["regex"]["scripts"].append({
+                            "pattern": pattern,
+                            "compiled": compiled,
+                            "confidence": get_confidence(pattern)
+                        })
+                    else:
+                        skipped_patterns += 1
+            else:
+                compiled = safe_compile_regex(tech_info["scripts"], re.IGNORECASE)
+                if compiled:
+                    patterns[tech_name]["regex"]["scripts"].append({
+                        "pattern": tech_info["scripts"],
+                        "compiled": compiled,
+                        "confidence": get_confidence(tech_info["scripts"])
+                    })
                 else:
                     skipped_patterns += 1
     
-    print(f"Total de padrões ignorados devido a erros de expressão regular: {skipped_patterns}")
+    logger.info(f"Total de padrões ignorados devido a erros de expressão regular: {skipped_patterns}")
     return patterns
 
 # Compilar padrões regex uma vez na inicialização
 try:
-    PATTERNS = get_regex_patterns()
-    print(f"Padrões compilados com sucesso: {len(PATTERNS)} tecnologias carregadas.")
+    PATTERNS = compile_patterns()
+    logger.info(f"Padrões compilados com sucesso: {len(PATTERNS)} tecnologias carregadas.")
 except Exception as e:
-    print(f"Erro ao compilar padrões: {str(e)}")
+    logger.error(f"Erro ao compilar padrões: {str(e)}")
     PATTERNS = {}
 
 def detect_technologies(html_content, url, headers, soup=None):
@@ -257,21 +398,22 @@ def detect_technologies(html_content, url, headers, soup=None):
     for tech_name, tech_patterns in PATTERNS.items():
         confidence = 0
         version = ""
+        matched_patterns = []
         
         # Verificar padrões HTML
         if "regex" in tech_patterns and "html" in tech_patterns["regex"]:
-            for pattern in tech_patterns["regex"]["html"]:
-                if pattern and pattern.search(html_str):
-                    confidence = max(confidence, 100)
-                    # Tentar extrair versão se o padrão contiver grupo de captura
-                    match = pattern.search(html_str)
-                    if match and "\\;version:" in pattern.pattern:
-                        version_pattern = pattern.pattern.split("\\;version:")[1].split("\\;")[0]
-                        try:
-                            if match.groups():
-                                version = match.group(int(version_pattern))
-                        except:
-                            pass
+            for pattern_obj in tech_patterns["regex"]["html"]:
+                match = pattern_obj["compiled"].search(html_str)
+                if match:
+                    pattern_confidence = pattern_obj["confidence"]
+                    confidence = max(confidence, pattern_confidence)
+                    
+                    # Tentar extrair versão
+                    extracted_version = extract_version(pattern_obj["pattern"], match, html_str)
+                    if extracted_version:
+                        version = extracted_version
+                        
+                    matched_patterns.append(f"html:{pattern_obj['pattern']}")
         
         # Verificar padrões de script
         if "regex" in tech_patterns and "script" in tech_patterns["regex"]:
@@ -279,18 +421,18 @@ def detect_technologies(html_content, url, headers, soup=None):
             script_srcs = [script.get("src", "") for script in script_tags]
             script_srcs_str = " ".join(script_srcs)
             
-            for pattern in tech_patterns["regex"]["script"]:
-                if pattern and pattern.search(script_srcs_str):
-                    confidence = max(confidence, 100)
+            for pattern_obj in tech_patterns["regex"]["script"]:
+                match = pattern_obj["compiled"].search(script_srcs_str)
+                if match:
+                    pattern_confidence = pattern_obj["confidence"]
+                    confidence = max(confidence, pattern_confidence)
+                    
                     # Tentar extrair versão
-                    match = pattern.search(script_srcs_str)
-                    if match and "\\;version:" in pattern.pattern:
-                        version_pattern = pattern.pattern.split("\\;version:")[1].split("\\;")[0]
-                        try:
-                            if match.groups():
-                                version = match.group(int(version_pattern))
-                        except:
-                            pass
+                    extracted_version = extract_version(pattern_obj["pattern"], match, script_srcs_str)
+                    if extracted_version:
+                        version = extracted_version
+                        
+                    matched_patterns.append(f"script:{pattern_obj['pattern']}")
         
         # Verificar padrões de meta tags
         if "meta" in tech_patterns:
@@ -307,71 +449,128 @@ def detect_technologies(html_content, url, headers, soup=None):
                     elif meta_tag.get("http-equiv", "").lower() == meta_name.lower():
                         meta_content = meta_tag.get("content", "")
                     
-                    if meta_content:
-                        if isinstance(meta_pattern, str):
-                            if re.search(meta_pattern, meta_content, re.IGNORECASE):
+                    if meta_content and isinstance(meta_pattern, str):
+                        # Remover a parte de versão para a correspondência
+                        match_pattern = meta_pattern.split('\\;')[0] if '\\;' in meta_pattern else meta_pattern
+                        match = re.search(match_pattern, meta_content, re.IGNORECASE)
+                        
+                        if match:
+                            # Verificar confiança
+                            if "\\;confidence:" in meta_pattern:
+                                conf_value = int(meta_pattern.split("\\;confidence:")[1].split("\\;")[0])
+                                confidence = max(confidence, conf_value)
+                            else:
                                 confidence = max(confidence, 100)
-                                # Tentar extrair versão
-                                if "\\;version:" in meta_pattern:
+                                
+                            # Obter versão
+                            if "\\;version:" in meta_pattern:
+                                try:
                                     version_pattern = meta_pattern.split("\\;version:")[1].split("\\;")[0]
-                                    match = re.search(meta_pattern.split("\\;")[0], meta_content, re.IGNORECASE)
-                                    try:
-                                        if match and match.groups():
-                                            version = match.group(int(version_pattern))
-                                    except:
-                                        pass
-                                elif "\\;confidence:" in meta_pattern:
-                                    conf_pattern = meta_pattern.split("\\;confidence:")[1].split("\\;")[0]
-                                    try:
-                                        confidence = max(confidence, int(conf_pattern))
-                                    except:
-                                        pass
+                                    if match.groups() and version_pattern.isdigit():
+                                        version = match.group(int(version_pattern))
+                                except Exception:
+                                    pass
+                                    
+                            matched_patterns.append(f"meta:{meta_name}={meta_pattern}")
         
         # Verificar padrões de URL
         if "regex" in tech_patterns and "url" in tech_patterns["regex"]:
-            for pattern in tech_patterns["regex"]["url"]:
-                if pattern and pattern.search(url):
-                    confidence = max(confidence, 100)
+            for pattern_obj in tech_patterns["regex"]["url"]:
+                match = pattern_obj["compiled"].search(url)
+                if match:
+                    pattern_confidence = pattern_obj["confidence"]
+                    confidence = max(confidence, pattern_confidence)
+                    
                     # Tentar extrair versão
-                    match = pattern.search(url)
-                    if match and "\\;version:" in pattern.pattern:
-                        version_pattern = pattern.pattern.split("\\;version:")[1].split("\\;")[0]
-                        try:
-                            if match.groups():
-                                version = match.group(int(version_pattern))
-                        except:
-                            pass
-                    elif match and "\\;confidence:" in pattern.pattern:
-                        conf_pattern = pattern.pattern.split("\\;confidence:")[1].split("\\;")[0]
-                        try:
-                            confidence = max(confidence, int(conf_pattern))
-                        except:
-                            pass
+                    extracted_version = extract_version(pattern_obj["pattern"], match, url)
+                    if extracted_version:
+                        version = extracted_version
+                        
+                    matched_patterns.append(f"url:{pattern_obj['pattern']}")
         
         # Verificar padrões de headers
         if "headers" in tech_patterns:
             for header_name, header_pattern in tech_patterns["headers"].items():
-                if header_name.lower() in headers:
-                    header_value = headers[header_name.lower()]
-                    if isinstance(header_pattern, str):
-                        if re.search(header_pattern, header_value, re.IGNORECASE):
+                header_value = ""
+                
+                # Converter cabeçalhos para formato consistente (lowercase)
+                for key, value in headers.items():
+                    if key.lower() == header_name.lower():
+                        header_value = value
+                        break
+                
+                if header_value and isinstance(header_pattern, str):
+                    # Remover a parte de versão para a correspondência
+                    match_pattern = header_pattern.split('\\;')[0] if '\\;' in header_pattern else header_pattern
+                    match = re.search(match_pattern, header_value, re.IGNORECASE)
+                    
+                    if match:
+                        # Verificar confiança
+                        if "\\;confidence:" in header_pattern:
+                            conf_value = int(header_pattern.split("\\;confidence:")[1].split("\\;")[0])
+                            confidence = max(confidence, conf_value)
+                        else:
                             confidence = max(confidence, 100)
-                            # Tentar extrair versão
-                            if "\\;version:" in header_pattern:
+                            
+                        # Obter versão
+                        if "\\;version:" in header_pattern:
+                            try:
                                 version_pattern = header_pattern.split("\\;version:")[1].split("\\;")[0]
-                                match = re.search(header_pattern.split("\\;")[0], header_value, re.IGNORECASE)
-                                try:
-                                    if match and match.groups():
-                                        version = match.group(int(version_pattern))
-                                except:
-                                    pass
+                                if match.groups() and version_pattern.isdigit():
+                                    version = match.group(int(version_pattern))
+                            except Exception:
+                                pass
+                                
+                        matched_patterns.append(f"header:{header_name}={header_pattern}")
         
-        # Verificar padrões DOM
-        if "regex" in tech_patterns and "dom" in tech_patterns["regex"]:
-            dom_str = str(soup)
-            for pattern in tech_patterns["regex"]["dom"]:
-                if pattern and pattern.search(dom_str):
-                    confidence = max(confidence, 100)
+        # Verificar padrões de texto
+        if "regex" in tech_patterns and "text" in tech_patterns["regex"]:
+            for pattern_obj in tech_patterns["regex"]["text"]:
+                match = pattern_obj["compiled"].search(html_str)
+                if match:
+                    pattern_confidence = pattern_obj["confidence"]
+                    confidence = max(confidence, pattern_confidence)
+                    
+                    # Tentar extrair versão
+                    extracted_version = extract_version(pattern_obj["pattern"], match, html_str)
+                    if extracted_version:
+                        version = extracted_version
+                        
+                    matched_patterns.append(f"text:{pattern_obj['pattern']}")
+        
+        # Verificar padrões de CSS
+        if "regex" in tech_patterns and "css" in tech_patterns["regex"]:
+            css_str = " ".join([style.string for style in soup.find_all("style") if style.string])
+            
+            for pattern_obj in tech_patterns["regex"]["css"]:
+                match = pattern_obj["compiled"].search(css_str)
+                if match:
+                    pattern_confidence = pattern_obj["confidence"]
+                    confidence = max(confidence, pattern_confidence)
+                    
+                    # Tentar extrair versão
+                    extracted_version = extract_version(pattern_obj["pattern"], match, css_str)
+                    if extracted_version:
+                        version = extracted_version
+                        
+                    matched_patterns.append(f"css:{pattern_obj['pattern']}")
+        
+        # Verificar padrões de scripts
+        if "regex" in tech_patterns and "scripts" in tech_patterns["regex"]:
+            scripts_str = " ".join([script.string for script in soup.find_all("script") if script.string])
+            
+            for pattern_obj in tech_patterns["regex"]["scripts"]:
+                match = pattern_obj["compiled"].search(scripts_str)
+                if match:
+                    pattern_confidence = pattern_obj["confidence"]
+                    confidence = max(confidence, pattern_confidence)
+                    
+                    # Tentar extrair versão
+                    extracted_version = extract_version(pattern_obj["pattern"], match, scripts_str)
+                    if extracted_version:
+                        version = extracted_version
+                        
+                    matched_patterns.append(f"scripts:{pattern_obj['pattern']}")
         
         # Se encontrou alguma evidência, adicionar à lista de tecnologias
         if confidence > 0:
@@ -381,7 +580,8 @@ def detect_technologies(html_content, url, headers, soup=None):
                 "categories": tech_patterns["categories"],
                 "icon": tech_patterns.get("icon", ""),
                 "website": tech_patterns.get("website", ""),
-                "description": tech_patterns.get("description", "")
+                "description": tech_patterns.get("description", ""),
+                "matched_patterns": matched_patterns
             }
     
     # Detecções específicas para tecnologias de chat e atendimento ao cliente
@@ -409,7 +609,8 @@ def detect_technologies(html_content, url, headers, soup=None):
                         "categories": [52],  # Categoria "Live chat"
                         "icon": "",
                         "website": "",
-                        "description": f"{tech_name} é uma ferramenta de chat e atendimento ao cliente."
+                        "description": f"{tech_name} é uma ferramenta de chat e atendimento ao cliente.",
+                        "matched_patterns": [f"custom:{pattern}"]
                     }
                     break
     
