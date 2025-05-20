@@ -5,6 +5,7 @@ import time
 import requests
 from bs4 import BeautifulSoup
 import re
+import subprocess
 
 app = Flask(__name__)
 
@@ -12,30 +13,67 @@ app = Flask(__name__)
 def download_technologies_json():
     print("Arquivo technologies.json não encontrado. Baixando...")
     try:
+        # Fazer backup do arquivo antigo se existir
+        technologies_path = os.path.join(os.path.dirname(__file__), 'technologies.json')
+        if os.path.exists(technologies_path):
+            backup_path = technologies_path + '.bak'
+            os.rename(technologies_path, backup_path)
+            print(f"Backup do arquivo original criado em {backup_path}")
+        
+        # Baixar o novo arquivo
         url = "https://raw.githubusercontent.com/AliasIO/wappalyzer/master/src/technologies.json"
         response = requests.get(url)
         response.raise_for_status()
-        with open(os.path.join(os.path.dirname(__file__), 'technologies.json'), 'w', encoding='utf-8') as f:
-            f.write(response.text)
+        
+        # Verificar se é um JSON válido antes de salvar
+        json_data = response.json()  # Isso vai lançar uma exceção se o JSON for inválido
+        
+        # Salvar o arquivo se o JSON for válido
+        with open(technologies_path, 'w', encoding='utf-8') as f:
+            json.dump(json_data, f, ensure_ascii=False, indent=2)
+            
         print("Download do arquivo technologies.json concluído com sucesso.")
         return True
     except Exception as e:
         print(f"Erro ao baixar technologies.json: {str(e)}")
+        
+        # Tentar restaurar o backup se existir
+        backup_path = technologies_path + '.bak'
+        if os.path.exists(backup_path):
+            os.rename(backup_path, technologies_path)
+            print("Arquivo de backup restaurado.")
         return False
 
+# Tentar carregar o arquivo technologies.json
 try:
-    # Tentar carregar o arquivo technologies.json
     technologies_path = os.path.join(os.path.dirname(__file__), 'technologies.json')
+    
     if not os.path.exists(technologies_path):
         success = download_technologies_json()
         if not success:
+            print("Não foi possível baixar o arquivo. Criando um arquivo vazio.")
             TECHNOLOGIES = {}
+            # Criar um arquivo JSON vazio válido
+            with open(technologies_path, 'w', encoding='utf-8') as f:
+                json.dump({}, f)
         else:
             with open(technologies_path, 'r', encoding='utf-8') as f:
                 TECHNOLOGIES = json.load(f)
     else:
-        with open(technologies_path, 'r', encoding='utf-8') as f:
-            TECHNOLOGIES = json.load(f)
+        try:
+            with open(technologies_path, 'r', encoding='utf-8') as f:
+                TECHNOLOGIES = json.load(f)
+        except json.JSONDecodeError:
+            print("O arquivo technologies.json existente está corrompido. Tentando baixar novamente.")
+            success = download_technologies_json()
+            if success:
+                with open(technologies_path, 'r', encoding='utf-8') as f:
+                    TECHNOLOGIES = json.load(f)
+            else:
+                TECHNOLOGIES = {}
+                # Criar um arquivo JSON vazio válido
+                with open(technologies_path, 'w', encoding='utf-8') as f:
+                    json.dump({}, f)
 except Exception as e:
     print(f"Erro ao carregar technologies.json: {str(e)}")
     TECHNOLOGIES = {}
@@ -56,7 +94,7 @@ def index():
     </head>
     <body>
         <h1>Wappalyzer-Next API</h1>
-        <p>Esta API utiliza as fingerprints do <a href="https://github.com/s0md3v/wappalyzer-next" target="_blank">wappalyzer-next</a> 
+        <p>Esta API utiliza as fingerprints do <a href="https://github.com/AliasIO/wappalyzer" target="_blank">Wappalyzer</a> 
         para detectar tecnologias em websites, com foco especial em tecnologias de frontend e ferramentas de chat/atendimento ao cliente.</p>
         
         <p>Base de dados: <span class="tech-count">{}</span> tecnologias disponíveis para detecção.</p>
