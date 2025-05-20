@@ -7,12 +7,21 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar código da aplicação e dados
+# Copiar código da aplicação
 COPY app.py .
-COPY technologies.json .
+
+# Criar um script para baixar o arquivo technologies.json
+RUN echo '#!/bin/bash\n\
+if [ ! -f technologies.json ]; then\n\
+  echo "Baixando technologies.json..."\n\
+  curl -s -o technologies.json https://raw.githubusercontent.com/s0md3v/wappalyzer-next/main/technologies.json\n\
+  echo "Download concluído."\n\
+fi\n\
+exec python app.py\n\
+' > start.sh && chmod +x start.sh
 
 # Expor porta
 EXPOSE 3000
 
 # Comando para iniciar a aplicação
-CMD ["python", "app.py"]
+CMD ["./start.sh"]

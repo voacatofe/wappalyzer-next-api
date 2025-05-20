@@ -8,9 +8,27 @@ import re
 
 app = Flask(__name__)
 
-# Carregar o arquivo technologies.json do wappalyzer-next
-with open(os.path.join(os.path.dirname(__file__), 'technologies.json'), 'r', encoding='utf-8') as f:
-    TECHNOLOGIES = json.load(f)
+# Verificar se o arquivo technologies.json existe, se não, baixá-lo
+def download_technologies_json():
+    print("Arquivo technologies.json não encontrado. Baixando...")
+    url = "https://raw.githubusercontent.com/s0md3v/wappalyzer-next/main/technologies.json"
+    response = requests.get(url)
+    response.raise_for_status()
+    with open(os.path.join(os.path.dirname(__file__), 'technologies.json'), 'w', encoding='utf-8') as f:
+        f.write(response.text)
+    print("Download do arquivo technologies.json concluído com sucesso.")
+
+try:
+    # Tentar carregar o arquivo technologies.json
+    technologies_path = os.path.join(os.path.dirname(__file__), 'technologies.json')
+    if not os.path.exists(technologies_path):
+        download_technologies_json()
+    
+    with open(technologies_path, 'r', encoding='utf-8') as f:
+        TECHNOLOGIES = json.load(f)
+except Exception as e:
+    print(f"Erro ao carregar technologies.json: {str(e)}")
+    TECHNOLOGIES = {}
 
 @app.route('/')
 def index():
@@ -62,6 +80,14 @@ def status():
         "timestamp": time.time()
     })
 
+def safe_compile_regex(pattern, flags=0):
+    """Compila um padrão regex com tratamento de erros"""
+    try:
+        return re.compile(pattern, flags)
+    except re.error as e:
+        print(f"Erro ao compilar regex '{pattern}': {str(e)}")
+        return None
+
 def get_regex_patterns():
     """Extrai padrões regex de todas as tecnologias"""
     patterns = {}
@@ -77,17 +103,29 @@ def get_regex_patterns():
         
         # HTML patterns
         if "html" in tech_info:
+            patterns[tech_name]["regex"]["html"] = []
             if isinstance(tech_info["html"], list):
-                patterns[tech_name]["regex"]["html"] = [re.compile(pattern, re.IGNORECASE) for pattern in tech_info["html"]]
+                for pattern in tech_info["html"]:
+                    compiled = safe_compile_regex(pattern, re.IGNORECASE)
+                    if compiled:
+                        patterns[tech_name]["regex"]["html"].append(compiled)
             else:
-                patterns[tech_name]["regex"]["html"] = [re.compile(tech_info["html"], re.IGNORECASE)]
+                compiled = safe_compile_regex(tech_info["html"], re.IGNORECASE)
+                if compiled:
+                    patterns[tech_name]["regex"]["html"].append(compiled)
         
         # Script patterns
         if "scriptSrc" in tech_info:
+            patterns[tech_name]["regex"]["script"] = []
             if isinstance(tech_info["scriptSrc"], list):
-                patterns[tech_name]["regex"]["script"] = [re.compile(pattern, re.IGNORECASE) for pattern in tech_info["scriptSrc"]]
+                for pattern in tech_info["scriptSrc"]:
+                    compiled = safe_compile_regex(pattern, re.IGNORECASE)
+                    if compiled:
+                        patterns[tech_name]["regex"]["script"].append(compiled)
             else:
-                patterns[tech_name]["regex"]["script"] = [re.compile(tech_info["scriptSrc"], re.IGNORECASE)]
+                compiled = safe_compile_regex(tech_info["scriptSrc"], re.IGNORECASE)
+                if compiled:
+                    patterns[tech_name]["regex"]["script"].append(compiled)
         
         # Meta patterns
         if "meta" in tech_info:
@@ -95,10 +133,16 @@ def get_regex_patterns():
         
         # URL patterns
         if "url" in tech_info:
+            patterns[tech_name]["regex"]["url"] = []
             if isinstance(tech_info["url"], list):
-                patterns[tech_name]["regex"]["url"] = [re.compile(pattern, re.IGNORECASE) for pattern in tech_info["url"]]
+                for pattern in tech_info["url"]:
+                    compiled = safe_compile_regex(pattern, re.IGNORECASE)
+                    if compiled:
+                        patterns[tech_name]["regex"]["url"].append(compiled)
             else:
-                patterns[tech_name]["regex"]["url"] = [re.compile(tech_info["url"], re.IGNORECASE)]
+                compiled = safe_compile_regex(tech_info["url"], re.IGNORECASE)
+                if compiled:
+                    patterns[tech_name]["regex"]["url"].append(compiled)
         
         # Headers patterns
         if "headers" in tech_info:
@@ -110,15 +154,26 @@ def get_regex_patterns():
         
         # DOM patterns
         if "dom" in tech_info:
+            patterns[tech_name]["regex"]["dom"] = []
             if isinstance(tech_info["dom"], list):
-                patterns[tech_name]["regex"]["dom"] = [re.compile(pattern, re.IGNORECASE) for pattern in tech_info["dom"]]
+                for pattern in tech_info["dom"]:
+                    compiled = safe_compile_regex(pattern, re.IGNORECASE)
+                    if compiled:
+                        patterns[tech_name]["regex"]["dom"].append(compiled)
             else:
-                patterns[tech_name]["regex"]["dom"] = [re.compile(tech_info["dom"], re.IGNORECASE)]
+                compiled = safe_compile_regex(tech_info["dom"], re.IGNORECASE)
+                if compiled:
+                    patterns[tech_name]["regex"]["dom"].append(compiled)
     
     return patterns
 
 # Compilar padrões regex uma vez na inicialização
-PATTERNS = get_regex_patterns()
+try:
+    PATTERNS = get_regex_patterns()
+    print(f"Padrões compilados com sucesso: {len(PATTERNS)} tecnologias carregadas.")
+except Exception as e:
+    print(f"Erro ao compilar padrões: {str(e)}")
+    PATTERNS = {}
 
 def detect_technologies(html_content, url, headers, soup=None):
     """Detecta tecnologias com base no conteúdo HTML, URL e headers"""
@@ -137,7 +192,7 @@ def detect_technologies(html_content, url, headers, soup=None):
         # Verificar padrões HTML
         if "regex" in tech_patterns and "html" in tech_patterns["regex"]:
             for pattern in tech_patterns["regex"]["html"]:
-                if pattern.search(html_str):
+                if pattern and pattern.search(html_str):
                     confidence = max(confidence, 100)
                     # Tentar extrair versão se o padrão contiver grupo de captura
                     match = pattern.search(html_str)
@@ -156,7 +211,7 @@ def detect_technologies(html_content, url, headers, soup=None):
             script_srcs_str = " ".join(script_srcs)
             
             for pattern in tech_patterns["regex"]["script"]:
-                if pattern.search(script_srcs_str):
+                if pattern and pattern.search(script_srcs_str):
                     confidence = max(confidence, 100)
                     # Tentar extrair versão
                     match = pattern.search(script_srcs_str)
@@ -206,7 +261,7 @@ def detect_technologies(html_content, url, headers, soup=None):
         # Verificar padrões de URL
         if "regex" in tech_patterns and "url" in tech_patterns["regex"]:
             for pattern in tech_patterns["regex"]["url"]:
-                if pattern.search(url):
+                if pattern and pattern.search(url):
                     confidence = max(confidence, 100)
                     # Tentar extrair versão
                     match = pattern.search(url)
@@ -246,7 +301,7 @@ def detect_technologies(html_content, url, headers, soup=None):
         if "regex" in tech_patterns and "dom" in tech_patterns["regex"]:
             dom_str = str(soup)
             for pattern in tech_patterns["regex"]["dom"]:
-                if pattern.search(dom_str):
+                if pattern and pattern.search(dom_str):
                     confidence = max(confidence, 100)
         
         # Se encontrou alguma evidência, adicionar à lista de tecnologias
