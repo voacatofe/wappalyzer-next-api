@@ -7,8 +7,9 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar código da aplicação
+# Copiar código da aplicação e dados
 COPY app.py .
+COPY technologies.json .
 
 # Expor porta
 EXPOSE 3000

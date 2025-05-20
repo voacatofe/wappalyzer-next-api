@@ -8,207 +8,9 @@ import re
 
 app = Flask(__name__)
 
-# Definições de tecnologias e seus padrões de detecção
-TECH_PATTERNS = {
-    # Frameworks de Frontend
-    "React": {
-        "patterns": [
-            r"react\.js",
-            r"react-dom",
-            r"__REACT_ROOT__",
-            r"_reactListening"
-        ],
-        "categories": ["JavaScript frameworks"]
-    },
-    "Vue.js": {
-        "patterns": [
-            r"vue\.js",
-            r"__vue__",
-            r"Vue\.version"
-        ],
-        "categories": ["JavaScript frameworks"]
-    },
-    "Angular": {
-        "patterns": [
-            r"angular\.js",
-            r"ng-app",
-            r"ng-controller",
-            r"angular\.version"
-        ],
-        "categories": ["JavaScript frameworks"]
-    },
-    "jQuery": {
-        "patterns": [
-            r"jquery\.js",
-            r"jquery\.min\.js",
-            r"jquery-\d+\.\d+\.\d+"
-        ],
-        "categories": ["JavaScript libraries"]
-    },
-    
-    # Ferramentas de Chat/Atendimento
-    "Zendesk Chat": {
-        "patterns": [
-            r"zopim",
-            r"zendesk",
-            r"zdassets",
-            r"zd-chat"
-        ],
-        "categories": ["Live chat", "Customer service"]
-    },
-    "Intercom": {
-        "patterns": [
-            r"intercom",
-            r"intercomcdn",
-            r"intercomassets"
-        ],
-        "categories": ["Live chat", "Customer service"]
-    },
-    "Drift": {
-        "patterns": [
-            r"drift",
-            r"driftt\.com",
-            r"js\.driftt\.com"
-        ],
-        "categories": ["Live chat", "Customer service"]
-    },
-    "Crisp": {
-        "patterns": [
-            r"crisp",
-            r"crisp\.chat",
-            r"client\.crisp\.chat"
-        ],
-        "categories": ["Live chat", "Customer service"]
-    },
-    "Tawk.to": {
-        "patterns": [
-            r"tawk\.to",
-            r"embed\.tawk\.to"
-        ],
-        "categories": ["Live chat", "Customer service"]
-    },
-    "LiveChat": {
-        "patterns": [
-            r"livechat",
-            r"livechatinc",
-            r"cdn\.livechatinc\.com"
-        ],
-        "categories": ["Live chat", "Customer service"]
-    },
-    "Olark": {
-        "patterns": [
-            r"olark",
-            r"static\.olark\.com"
-        ],
-        "categories": ["Live chat", "Customer service"]
-    },
-    "HubSpot Chat": {
-        "patterns": [
-            r"hubspot",
-            r"js\.hs-scripts\.com",
-            r"js\.usemessages\.com"
-        ],
-        "categories": ["Live chat", "Customer service"]
-    },
-    "Freshchat": {
-        "patterns": [
-            r"freshchat",
-            r"wchat\.freshchat\.com"
-        ],
-        "categories": ["Live chat", "Customer service"]
-    },
-    "LivePerson": {
-        "patterns": [
-            r"liveperson",
-            r"lpcdn\.lpsnmedia\.net"
-        ],
-        "categories": ["Live chat", "Customer service"]
-    },
-    "Chatwoot": {
-        "patterns": [
-            r"chatwoot",
-            r"app\.chatwoot\.com"
-        ],
-        "categories": ["Live chat", "Customer service"]
-    },
-    
-    # CMS
-    "WordPress": {
-        "patterns": [
-            r"wp-content",
-            r"wp-includes",
-            r"wordpress"
-        ],
-        "categories": ["CMS"]
-    },
-    "Drupal": {
-        "patterns": [
-            r"drupal",
-            r"drupal\.js",
-            r"drupal\.settings"
-        ],
-        "categories": ["CMS"]
-    },
-    "Joomla": {
-        "patterns": [
-            r"joomla",
-            r"\/media\/jui\/"
-        ],
-        "categories": ["CMS"]
-    },
-    
-    # Analytics
-    "Google Analytics": {
-        "patterns": [
-            r"google-analytics\.com",
-            r"ga\.js",
-            r"analytics\.js",
-            r"gtag"
-        ],
-        "categories": ["Analytics"]
-    },
-    "Google Tag Manager": {
-        "patterns": [
-            r"googletagmanager\.com",
-            r"gtm\.js",
-            r"gtm-"
-        ],
-        "categories": ["Tag managers"]
-    },
-    "Facebook Pixel": {
-        "patterns": [
-            r"connect\.facebook\.net",
-            r"fbevents\.js",
-            r"fbq\("
-        ],
-        "categories": ["Analytics"]
-    },
-    
-    # Outros
-    "Bootstrap": {
-        "patterns": [
-            r"bootstrap",
-            r"bootstrap\.css",
-            r"bootstrap\.js",
-            r"bootstrap\.min\.css"
-        ],
-        "categories": ["UI frameworks"]
-    },
-    "Tailwind CSS": {
-        "patterns": [
-            r"tailwind",
-            r"tailwindcss"
-        ],
-        "categories": ["UI frameworks"]
-    },
-    "Font Awesome": {
-        "patterns": [
-            r"font-awesome",
-            r"fontawesome"
-        ],
-        "categories": ["Font scripts"]
-    }
-}
+# Carregar o arquivo technologies.json do wappalyzer-next
+with open(os.path.join(os.path.dirname(__file__), 'technologies.json'), 'r', encoding='utf-8') as f:
+    TECHNOLOGIES = json.load(f)
 
 @app.route('/')
 def index():
@@ -221,11 +23,15 @@ def index():
             h1 { color: #333; }
             code { background-color: #f4f4f4; padding: 2px 5px; border-radius: 3px; }
             pre { background-color: #f4f4f4; padding: 10px; border-radius: 5px; overflow-x: auto; }
+            .tech-count { font-weight: bold; color: #007bff; }
         </style>
     </head>
     <body>
         <h1>Wappalyzer-Next API</h1>
-        <p>Esta API permite detectar tecnologias em websites, com foco especial em tecnologias de frontend e ferramentas de chat/atendimento ao cliente.</p>
+        <p>Esta API utiliza as fingerprints do <a href="https://github.com/s0md3v/wappalyzer-next" target="_blank">wappalyzer-next</a> 
+        para detectar tecnologias em websites, com foco especial em tecnologias de frontend e ferramentas de chat/atendimento ao cliente.</p>
+        
+        <p>Base de dados: <span class="tech-count">{}</span> tecnologias disponíveis para detecção.</p>
         
         <h2>Como usar:</h2>
         <p>Faça uma requisição GET para o endpoint <code>/detect</code> com o parâmetro <code>url</code>:</p>
@@ -245,84 +51,247 @@ def index():
         <pre>https://n8n-wappalyzer-next.hvlihi.easypanel.host/detect?url={{$json.website}}</pre>
     </body>
     </html>
-    """
+    """.format(len(TECHNOLOGIES))
 
 @app.route('/status')
 def status():
     return jsonify({
         "status": "online",
         "version": "1.0.0",
+        "technologies_count": len(TECHNOLOGIES),
         "timestamp": time.time()
     })
 
-def detect_technologies(html_content, url, headers):
-    """Detecta tecnologias com base no conteúdo HTML e headers"""
+def get_regex_patterns():
+    """Extrai padrões regex de todas as tecnologias"""
+    patterns = {}
+    
+    for tech_name, tech_info in TECHNOLOGIES.items():
+        patterns[tech_name] = {
+            "regex": {},
+            "categories": tech_info.get("cats", []),
+            "icon": tech_info.get("icon", ""),
+            "website": tech_info.get("website", ""),
+            "description": tech_info.get("description", "")
+        }
+        
+        # HTML patterns
+        if "html" in tech_info:
+            if isinstance(tech_info["html"], list):
+                patterns[tech_name]["regex"]["html"] = [re.compile(pattern, re.IGNORECASE) for pattern in tech_info["html"]]
+            else:
+                patterns[tech_name]["regex"]["html"] = [re.compile(tech_info["html"], re.IGNORECASE)]
+        
+        # Script patterns
+        if "scriptSrc" in tech_info:
+            if isinstance(tech_info["scriptSrc"], list):
+                patterns[tech_name]["regex"]["script"] = [re.compile(pattern, re.IGNORECASE) for pattern in tech_info["scriptSrc"]]
+            else:
+                patterns[tech_name]["regex"]["script"] = [re.compile(tech_info["scriptSrc"], re.IGNORECASE)]
+        
+        # Meta patterns
+        if "meta" in tech_info:
+            patterns[tech_name]["meta"] = tech_info["meta"]
+        
+        # URL patterns
+        if "url" in tech_info:
+            if isinstance(tech_info["url"], list):
+                patterns[tech_name]["regex"]["url"] = [re.compile(pattern, re.IGNORECASE) for pattern in tech_info["url"]]
+            else:
+                patterns[tech_name]["regex"]["url"] = [re.compile(tech_info["url"], re.IGNORECASE)]
+        
+        # Headers patterns
+        if "headers" in tech_info:
+            patterns[tech_name]["headers"] = tech_info["headers"]
+        
+        # JS patterns
+        if "js" in tech_info:
+            patterns[tech_name]["js"] = tech_info["js"]
+        
+        # DOM patterns
+        if "dom" in tech_info:
+            if isinstance(tech_info["dom"], list):
+                patterns[tech_name]["regex"]["dom"] = [re.compile(pattern, re.IGNORECASE) for pattern in tech_info["dom"]]
+            else:
+                patterns[tech_name]["regex"]["dom"] = [re.compile(tech_info["dom"], re.IGNORECASE)]
+    
+    return patterns
+
+# Compilar padrões regex uma vez na inicialização
+PATTERNS = get_regex_patterns()
+
+def detect_technologies(html_content, url, headers, soup=None):
+    """Detecta tecnologias com base no conteúdo HTML, URL e headers"""
+    if soup is None:
+        soup = BeautifulSoup(html_content, 'html.parser')
+    
     technologies = {}
     
-    # Converter HTML para minúsculas para facilitar a busca
-    html_lower = html_content.lower()
+    # Converter HTML para string para facilitar a busca
+    html_str = str(html_content).lower()
     
-    # Verificar cada tecnologia
-    for tech_name, tech_info in TECH_PATTERNS.items():
-        for pattern in tech_info["patterns"]:
-            if re.search(pattern.lower(), html_lower) or re.search(pattern.lower(), str(headers).lower()):
-                technologies[tech_name] = {
-                    "version": "",  # Versão não detectada nesta implementação simplificada
-                    "confidence": 100,
-                    "categories": tech_info["categories"],
-                    "groups": []
-                }
-                break
-    
-    # Detecções específicas baseadas em meta tags, scripts, etc.
-    soup = BeautifulSoup(html_content, 'html.parser')
-    
-    # Detectar WordPress
-    if soup.find('meta', {'name': 'generator', 'content': re.compile('WordPress', re.I)}):
+    for tech_name, tech_patterns in PATTERNS.items():
+        confidence = 0
         version = ""
-        generator = soup.find('meta', {'name': 'generator'})
-        if generator and 'content' in generator.attrs:
-            version_match = re.search(r'WordPress\s+(\d+\.\d+(\.\d+)?)', generator['content'])
-            if version_match:
-                version = version_match.group(1)
         
-        technologies["WordPress"] = {
-            "version": version,
-            "confidence": 100,
-            "categories": ["CMS"],
-            "groups": []
-        }
+        # Verificar padrões HTML
+        if "regex" in tech_patterns and "html" in tech_patterns["regex"]:
+            for pattern in tech_patterns["regex"]["html"]:
+                if pattern.search(html_str):
+                    confidence = max(confidence, 100)
+                    # Tentar extrair versão se o padrão contiver grupo de captura
+                    match = pattern.search(html_str)
+                    if match and "\\;version:" in pattern.pattern:
+                        version_pattern = pattern.pattern.split("\\;version:")[1].split("\\;")[0]
+                        try:
+                            if match.groups():
+                                version = match.group(int(version_pattern))
+                        except:
+                            pass
+        
+        # Verificar padrões de script
+        if "regex" in tech_patterns and "script" in tech_patterns["regex"]:
+            script_tags = soup.find_all("script", src=True)
+            script_srcs = [script.get("src", "") for script in script_tags]
+            script_srcs_str = " ".join(script_srcs)
+            
+            for pattern in tech_patterns["regex"]["script"]:
+                if pattern.search(script_srcs_str):
+                    confidence = max(confidence, 100)
+                    # Tentar extrair versão
+                    match = pattern.search(script_srcs_str)
+                    if match and "\\;version:" in pattern.pattern:
+                        version_pattern = pattern.pattern.split("\\;version:")[1].split("\\;")[0]
+                        try:
+                            if match.groups():
+                                version = match.group(int(version_pattern))
+                        except:
+                            pass
+        
+        # Verificar padrões de meta tags
+        if "meta" in tech_patterns:
+            meta_tags = soup.find_all("meta")
+            for meta_tag in meta_tags:
+                for meta_name, meta_pattern in tech_patterns["meta"].items():
+                    meta_content = None
+                    
+                    # Verificar diferentes atributos de meta tags
+                    if meta_tag.get("name", "").lower() == meta_name.lower():
+                        meta_content = meta_tag.get("content", "")
+                    elif meta_tag.get("property", "").lower() == meta_name.lower():
+                        meta_content = meta_tag.get("content", "")
+                    elif meta_tag.get("http-equiv", "").lower() == meta_name.lower():
+                        meta_content = meta_tag.get("content", "")
+                    
+                    if meta_content:
+                        if isinstance(meta_pattern, str):
+                            if re.search(meta_pattern, meta_content, re.IGNORECASE):
+                                confidence = max(confidence, 100)
+                                # Tentar extrair versão
+                                if "\\;version:" in meta_pattern:
+                                    version_pattern = meta_pattern.split("\\;version:")[1].split("\\;")[0]
+                                    match = re.search(meta_pattern.split("\\;")[0], meta_content, re.IGNORECASE)
+                                    try:
+                                        if match and match.groups():
+                                            version = match.group(int(version_pattern))
+                                    except:
+                                        pass
+                                elif "\\;confidence:" in meta_pattern:
+                                    conf_pattern = meta_pattern.split("\\;confidence:")[1].split("\\;")[0]
+                                    try:
+                                        confidence = max(confidence, int(conf_pattern))
+                                    except:
+                                        pass
+        
+        # Verificar padrões de URL
+        if "regex" in tech_patterns and "url" in tech_patterns["regex"]:
+            for pattern in tech_patterns["regex"]["url"]:
+                if pattern.search(url):
+                    confidence = max(confidence, 100)
+                    # Tentar extrair versão
+                    match = pattern.search(url)
+                    if match and "\\;version:" in pattern.pattern:
+                        version_pattern = pattern.pattern.split("\\;version:")[1].split("\\;")[0]
+                        try:
+                            if match.groups():
+                                version = match.group(int(version_pattern))
+                        except:
+                            pass
+                    elif match and "\\;confidence:" in pattern.pattern:
+                        conf_pattern = pattern.pattern.split("\\;confidence:")[1].split("\\;")[0]
+                        try:
+                            confidence = max(confidence, int(conf_pattern))
+                        except:
+                            pass
+        
+        # Verificar padrões de headers
+        if "headers" in tech_patterns:
+            for header_name, header_pattern in tech_patterns["headers"].items():
+                if header_name.lower() in headers:
+                    header_value = headers[header_name.lower()]
+                    if isinstance(header_pattern, str):
+                        if re.search(header_pattern, header_value, re.IGNORECASE):
+                            confidence = max(confidence, 100)
+                            # Tentar extrair versão
+                            if "\\;version:" in header_pattern:
+                                version_pattern = header_pattern.split("\\;version:")[1].split("\\;")[0]
+                                match = re.search(header_pattern.split("\\;")[0], header_value, re.IGNORECASE)
+                                try:
+                                    if match and match.groups():
+                                        version = match.group(int(version_pattern))
+                                except:
+                                    pass
+        
+        # Verificar padrões DOM
+        if "regex" in tech_patterns and "dom" in tech_patterns["regex"]:
+            dom_str = str(soup)
+            for pattern in tech_patterns["regex"]["dom"]:
+                if pattern.search(dom_str):
+                    confidence = max(confidence, 100)
+        
+        # Se encontrou alguma evidência, adicionar à lista de tecnologias
+        if confidence > 0:
+            technologies[tech_name] = {
+                "version": version,
+                "confidence": confidence,
+                "categories": tech_patterns["categories"],
+                "icon": tech_patterns.get("icon", ""),
+                "website": tech_patterns.get("website", ""),
+                "description": tech_patterns.get("description", "")
+            }
     
-    # Detectar React com base em atributos específicos
-    if soup.find(attrs={"data-reactroot": True}) or soup.find(attrs={"data-reactid": True}):
-        technologies["React"] = {
-            "version": "",
-            "confidence": 100,
-            "categories": ["JavaScript frameworks"],
-            "groups": []
-        }
+    # Detecções específicas para tecnologias de chat e atendimento ao cliente
+    chat_patterns = {
+        "Zendesk Chat": [r"zopim", r"zendesk", r"zdassets", r"zd-chat"],
+        "Intercom": [r"intercom", r"intercomcdn", r"intercomassets"],
+        "Drift": [r"drift", r"driftt\.com", r"js\.driftt\.com"],
+        "Crisp": [r"crisp", r"crisp\.chat", r"client\.crisp\.chat"],
+        "Tawk.to": [r"tawk\.to", r"embed\.tawk\.to"],
+        "LiveChat": [r"livechat", r"livechatinc", r"cdn\.livechatinc\.com"],
+        "Olark": [r"olark", r"static\.olark\.com"],
+        "HubSpot Chat": [r"hubspot", r"js\.hs-scripts\.com", r"js\.usemessages\.com"],
+        "Freshchat": [r"freshchat", r"wchat\.freshchat\.com"],
+        "LivePerson": [r"liveperson", r"lpcdn\.lpsnmedia\.net"],
+        "Chatwoot": [r"chatwoot", r"app\.chatwoot\.com"]
+    }
     
-    # Detectar Vue.js com base em atributos específicos
-    if soup.find(attrs={"data-v-": re.compile(r'')}):
-        technologies["Vue.js"] = {
-            "version": "",
-            "confidence": 100,
-            "categories": ["JavaScript frameworks"],
-            "groups": []
-        }
-    
-    # Detectar Angular com base em atributos específicos
-    if soup.find(attrs={"ng-": re.compile(r'')}):
-        technologies["Angular"] = {
-            "version": "",
-            "confidence": 100,
-            "categories": ["JavaScript frameworks"],
-            "groups": []
-        }
+    for tech_name, patterns in chat_patterns.items():
+        if tech_name not in technologies:  # Evitar duplicatas
+            for pattern in patterns:
+                if re.search(pattern, html_str, re.IGNORECASE) or re.search(pattern, url, re.IGNORECASE) or re.search(pattern, str(headers), re.IGNORECASE):
+                    technologies[tech_name] = {
+                        "version": "",
+                        "confidence": 100,
+                        "categories": [52],  # Categoria "Live chat"
+                        "icon": "",
+                        "website": "",
+                        "description": f"{tech_name} é uma ferramenta de chat e atendimento ao cliente."
+                    }
+                    break
     
     return technologies
 
-@app.route('/detect')
+@app.route('/detect', methods=['GET'])
 def detect():
     url = request.args.get('url')
     timeout = int(request.args.get('timeout', 10))
@@ -345,8 +314,11 @@ def detect():
         response = requests.get(url, headers=headers, timeout=timeout)
         response.raise_for_status()
         
+        # Preparar BeautifulSoup
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
         # Detectar tecnologias
-        technologies = detect_technologies(response.text, url, response.headers)
+        technologies = detect_technologies(response.text, url, response.headers, soup)
         
         # Montar resultado
         result = {
