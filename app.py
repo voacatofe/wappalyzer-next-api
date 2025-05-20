@@ -11,21 +11,31 @@ app = Flask(__name__)
 # Verificar se o arquivo technologies.json existe, se não, baixá-lo
 def download_technologies_json():
     print("Arquivo technologies.json não encontrado. Baixando...")
-    url = "https://raw.githubusercontent.com/s0md3v/Wappalyzer/main/technologies.json"
-    response = requests.get(url)
-    response.raise_for_status()
-    with open(os.path.join(os.path.dirname(__file__), 'technologies.json'), 'w', encoding='utf-8') as f:
-        f.write(response.text)
-    print("Download do arquivo technologies.json concluído com sucesso.")
+    try:
+        url = "https://raw.githubusercontent.com/AliasIO/wappalyzer/master/src/technologies.json"
+        response = requests.get(url)
+        response.raise_for_status()
+        with open(os.path.join(os.path.dirname(__file__), 'technologies.json'), 'w', encoding='utf-8') as f:
+            f.write(response.text)
+        print("Download do arquivo technologies.json concluído com sucesso.")
+        return True
+    except Exception as e:
+        print(f"Erro ao baixar technologies.json: {str(e)}")
+        return False
 
 try:
     # Tentar carregar o arquivo technologies.json
     technologies_path = os.path.join(os.path.dirname(__file__), 'technologies.json')
     if not os.path.exists(technologies_path):
-        download_technologies_json()
-    
-    with open(technologies_path, 'r', encoding='utf-8') as f:
-        TECHNOLOGIES = json.load(f)
+        success = download_technologies_json()
+        if not success:
+            TECHNOLOGIES = {}
+        else:
+            with open(technologies_path, 'r', encoding='utf-8') as f:
+                TECHNOLOGIES = json.load(f)
+    else:
+        with open(technologies_path, 'r', encoding='utf-8') as f:
+            TECHNOLOGIES = json.load(f)
 except Exception as e:
     print(f"Erro ao carregar technologies.json: {str(e)}")
     TECHNOLOGIES = {}
@@ -86,6 +96,9 @@ def safe_compile_regex(pattern, flags=0):
         return re.compile(pattern, flags)
     except re.error as e:
         print(f"Erro ao compilar regex '{pattern}': {str(e)}")
+        return None
+    except Exception as e:
+        print(f"Erro genérico ao compilar regex '{pattern}': {str(e)}")
         return None
 
 def get_regex_patterns():
