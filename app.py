@@ -7,6 +7,8 @@ from bs4 import BeautifulSoup
 import re
 import subprocess
 import logging
+import tempfile
+import shutil
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO, 
@@ -22,35 +24,106 @@ TECHNOLOGIES_URL = "https://raw.githubusercontent.com/enthec/webappanalyzer/main
 def download_technologies_json():
     logger.info("Arquivo technologies.json não encontrado. Baixando...")
     try:
+        # Criar um arquivo temporário para baixar o technologies.json
+        temp_file = tempfile.NamedTemporaryFile(delete=False)
+        temp_file.close()
+        
         # Fazer backup do arquivo antigo se existir
         technologies_path = os.path.join(os.path.dirname(__file__), 'technologies.json')
         if os.path.exists(technologies_path):
             backup_path = technologies_path + '.bak'
-            os.rename(technologies_path, backup_path)
-            logger.info(f"Backup do arquivo original criado em {backup_path}")
+            try:
+                shutil.copy2(technologies_path, backup_path)
+                logger.info(f"Backup do arquivo original criado em {backup_path}")
+            except Exception as e:
+                logger.warning(f"Não foi possível criar backup: {str(e)}")
         
-        # Baixar o novo arquivo
-        response = requests.get(TECHNOLOGIES_URL)
+        # Baixar o novo arquivo diretamente com Python
+        logger.info(f"Baixando de {TECHNOLOGIES_URL}...")
+        response = requests.get(TECHNOLOGIES_URL, timeout=30)
         response.raise_for_status()
         
-        # Verificar se é um JSON válido antes de salvar
-        json_data = response.json()  # Isso vai lançar uma exceção se o JSON for inválido
-        
-        # Salvar o arquivo se o JSON for válido
-        with open(technologies_path, 'w', encoding='utf-8') as f:
-            json.dump(json_data, f, ensure_ascii=False, indent=2)
+        # Verificar se a resposta é um JSON válido
+        try:
+            json_data = response.json()
+            logger.info(f"JSON válido recebido com {len(json_data)} tecnologias")
             
-        logger.info("Download do arquivo technologies.json concluído com sucesso.")
-        return True
-    except Exception as e:
+            # Salvar o arquivo se o JSON for válido
+            with open(temp_file.name, 'w', encoding='utf-8') as f:
+                json.dump(json_data, f, ensure_ascii=False, indent=2)
+                
+            # Mover o arquivo temporário para o destino final
+            shutil.move(temp_file.name, technologies_path)
+            logger.info("Download do arquivo technologies.json concluído com sucesso.")
+            return True
+        except json.JSONDecodeError as e:
+            logger.error(f"O JSON recebido é inválido: {str(e)}")
+            logger.debug(f"Conteúdo recebido: {response.text[:200]}...")
+            os.unlink(temp_file.name)
+            return False
+            
+    except requests.exceptions.RequestException as e:
         logger.error(f"Erro ao baixar technologies.json: {str(e)}")
         
-        # Tentar restaurar o backup se existir
-        backup_path = technologies_path + '.bak'
-        if os.path.exists(backup_path):
-            os.rename(backup_path, technologies_path)
-            logger.info("Arquivo de backup restaurado.")
+        # Se o arquivo temporário foi criado, removê-lo
+        if 'temp_file' in locals() and os.path.exists(temp_file.name):
+            os.unlink(temp_file.name)
+            
         return False
+    except Exception as e:
+        logger.error(f"Erro inesperado ao baixar technologies.json: {str(e)}")
+        
+        # Se o arquivo temporário foi criado, removê-lo
+        if 'temp_file' in locals() and os.path.exists(temp_file.name):
+            os.unlink(temp_file.name)
+            
+        return False
+
+# Gerar um arquivo technologies.json vazio (para fallback)
+def create_empty_technologies():
+    technologies_path = os.path.join(os.path.dirname(__file__), 'technologies.json')
+    logger.warning("Criando um arquivo technologies.json vazio")
+    
+    # Definir algumas tecnologias básicas para o arquivo vazio
+    basic_techs = {
+        "Google Analytics": {
+            "cats": [10],
+            "description": "Google Analytics é um serviço de análise da web",
+            "icon": "Google Analytics.svg",
+            "js": {
+                "GoogleAnalyticsObject": ""
+            },
+            "scriptSrc": [
+                "google-analytics\\.com/analytics\\.js",
+                "googletagmanager\\.com/gtag/js"
+            ],
+            "website": "https://marketingplatform.google.com/about/analytics/"
+        },
+        "WordPress": {
+            "cats": [1],
+            "description": "WordPress é um sistema de gestão de conteúdo.",
+            "html": [
+                "<link rel=[\"']stylesheet[\"'] [^>]+wp-(?:content|includes)",
+                "<link[^>]+s\\.w\\.org"
+            ],
+            "icon": "WordPress.svg",
+            "implies": "PHP",
+            "meta": {
+                "generator": "WordPress"
+            },
+            "scriptSrc": "/wp-includes/",
+            "website": "https://wordpress.org"
+        }
+    }
+    
+    try:
+        with open(technologies_path, 'w', encoding='utf-8') as f:
+            json.dump(basic_techs, f, ensure_ascii=False, indent=2)
+        logger.info(f"Arquivo technologies.json básico criado com {len(basic_techs)} tecnologias")
+        return basic_techs
+    except Exception as e:
+        logger.error(f"Erro ao criar arquivo technologies.json vazio: {str(e)}")
+        return {}
 
 # Carregar o arquivo technologies.json
 def load_technologies():
@@ -60,31 +133,26 @@ def load_technologies():
         if not os.path.exists(technologies_path):
             success = download_technologies_json()
             if not success:
-                logger.warning("Não foi possível baixar o arquivo. Criando um arquivo vazio.")
-                technologies = {}
-                # Criar um arquivo JSON vazio válido
-                with open(technologies_path, 'w', encoding='utf-8') as f:
-                    json.dump({}, f)
-                return technologies
+                return create_empty_technologies()
         
         try:
             with open(technologies_path, 'r', encoding='utf-8') as f:
                 technologies = json.load(f)
                 logger.info(f"Arquivo technologies.json carregado com sucesso. {len(technologies)} tecnologias disponíveis.")
                 return technologies
-        except json.JSONDecodeError:
-            logger.warning("O arquivo technologies.json existente está corrompido. Tentando baixar novamente.")
+        except json.JSONDecodeError as e:
+            logger.warning(f"O arquivo technologies.json existente está corrompido: {str(e)}. Tentando baixar novamente.")
             success = download_technologies_json()
             if success:
                 with open(technologies_path, 'r', encoding='utf-8') as f:
                     technologies = json.load(f)
                     return technologies
             else:
-                logger.warning("Falha ao recarregar. Usando dicionário vazio.")
-                return {}
+                logger.warning("Falha ao recarregar. Usando tecnologias básicas.")
+                return create_empty_technologies()
     except Exception as e:
         logger.error(f"Erro ao carregar technologies.json: {str(e)}")
-        return {}
+        return create_empty_technologies()
 
 # Carregar tecnologias
 TECHNOLOGIES = load_technologies()

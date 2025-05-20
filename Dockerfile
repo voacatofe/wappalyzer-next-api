@@ -1,12 +1,5 @@
 FROM python:3.12-slim
 
-# Instalação de dependências do sistema
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* && \
-    which curl  # Verificar se curl está instalado
-
 # Criar diretório de trabalho
 WORKDIR /app
 
@@ -17,33 +10,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copiar código da aplicação
 COPY app.py .
 
-# Criar um arquivo technologies.json vazio válido para evitar problemas
+# Criar um arquivo technologies.json vazio válido para evitar problemas iniciais
 RUN echo "{}" > technologies.json
 
-# Criar script de inicialização com verificação de curl
+# Criar script de inicialização
 RUN echo '#!/bin/bash\n\
-echo "Verificando instalação do curl..."\n\
-if ! command -v curl > /dev/null; then\n\
-  echo "ERRO: curl não está instalado, instalando agora..."\n\
-  apt-get update && apt-get install -y curl && apt-get clean\n\
-fi\n\
+echo "Iniciando aplicação Wappalyzer API..."\n\
 \n\
-echo "Baixando technologies.json..."\n\
-curl -s -o technologies.json.new https://raw.githubusercontent.com/enthec/webappanalyzer/main/src/technologies.json\n\
-\n\
-if [ $? -eq 0 ]; then\n\
-  # Verificar se o arquivo baixado é um JSON válido\n\
-  if python -c "import json; json.load(open(\"technologies.json.new\"))"; then\n\
-    mv technologies.json.new technologies.json\n\
-    echo "Download concluído com sucesso."\n\
-  else\n\
-    echo "Arquivo JSON inválido. Usando arquivo padrão se existir."\n\
-    rm technologies.json.new\n\
-  fi\n\
-else\n\
-  echo "Falha ao baixar o arquivo. Usando arquivo padrão se existir."\n\
-fi\n\
-\n\
+# O próprio app.py vai baixar o technologies.json na inicialização\n\
 exec python app.py\n\
 ' > start.sh && chmod +x start.sh
 
