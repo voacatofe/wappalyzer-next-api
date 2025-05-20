@@ -11,7 +11,7 @@ app = Flask(__name__)
 # Verificar se o arquivo technologies.json existe, se não, baixá-lo
 def download_technologies_json():
     print("Arquivo technologies.json não encontrado. Baixando...")
-    url = "https://raw.githubusercontent.com/s0md3v/wappalyzer-next/main/technologies.json"
+    url = "https://raw.githubusercontent.com/s0md3v/Wappalyzer/main/technologies.json"
     response = requests.get(url)
     response.raise_for_status()
     with open(os.path.join(os.path.dirname(__file__), 'technologies.json'), 'w', encoding='utf-8') as f:
@@ -91,6 +91,7 @@ def safe_compile_regex(pattern, flags=0):
 def get_regex_patterns():
     """Extrai padrões regex de todas as tecnologias"""
     patterns = {}
+    skipped_patterns = 0
     
     for tech_name, tech_info in TECHNOLOGIES.items():
         patterns[tech_name] = {
@@ -109,10 +110,14 @@ def get_regex_patterns():
                     compiled = safe_compile_regex(pattern, re.IGNORECASE)
                     if compiled:
                         patterns[tech_name]["regex"]["html"].append(compiled)
+                    else:
+                        skipped_patterns += 1
             else:
                 compiled = safe_compile_regex(tech_info["html"], re.IGNORECASE)
                 if compiled:
                     patterns[tech_name]["regex"]["html"].append(compiled)
+                else:
+                    skipped_patterns += 1
         
         # Script patterns
         if "scriptSrc" in tech_info:
@@ -122,10 +127,14 @@ def get_regex_patterns():
                     compiled = safe_compile_regex(pattern, re.IGNORECASE)
                     if compiled:
                         patterns[tech_name]["regex"]["script"].append(compiled)
+                    else:
+                        skipped_patterns += 1
             else:
                 compiled = safe_compile_regex(tech_info["scriptSrc"], re.IGNORECASE)
                 if compiled:
                     patterns[tech_name]["regex"]["script"].append(compiled)
+                else:
+                    skipped_patterns += 1
         
         # Meta patterns
         if "meta" in tech_info:
@@ -139,10 +148,14 @@ def get_regex_patterns():
                     compiled = safe_compile_regex(pattern, re.IGNORECASE)
                     if compiled:
                         patterns[tech_name]["regex"]["url"].append(compiled)
+                    else:
+                        skipped_patterns += 1
             else:
                 compiled = safe_compile_regex(tech_info["url"], re.IGNORECASE)
                 if compiled:
                     patterns[tech_name]["regex"]["url"].append(compiled)
+                else:
+                    skipped_patterns += 1
         
         # Headers patterns
         if "headers" in tech_info:
@@ -160,11 +173,16 @@ def get_regex_patterns():
                     compiled = safe_compile_regex(pattern, re.IGNORECASE)
                     if compiled:
                         patterns[tech_name]["regex"]["dom"].append(compiled)
+                    else:
+                        skipped_patterns += 1
             else:
                 compiled = safe_compile_regex(tech_info["dom"], re.IGNORECASE)
                 if compiled:
                     patterns[tech_name]["regex"]["dom"].append(compiled)
+                else:
+                    skipped_patterns += 1
     
+    print(f"Total de padrões ignorados devido a erros de expressão regular: {skipped_patterns}")
     return patterns
 
 # Compilar padrões regex uma vez na inicialização
